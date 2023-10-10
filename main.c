@@ -167,7 +167,7 @@ int main(int argc, char **argv)
         char *file_name, *contents;
         size_t i, file_length;
 
-        if(argc < 2)
+        if(argc != 2)
                 usage(-1);
 
         file_name = argv[1];
@@ -180,7 +180,7 @@ int main(int argc, char **argv)
 
         file_length = get_file_len(fp);
         if(file_length == 0) {
-                fprintf(stderr, "error: file is 0 bytes long");
+                fprintf(stderr, "error: file is 0 bytes long\n");
                 return EXIT_FAILURE;
         }
 
