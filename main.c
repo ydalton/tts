@@ -93,6 +93,13 @@ static void convert_to_header(const char *input, const char *name)
                 /* some reconnaisance work first */
                 start = (char *) input;
                 newline_pos = strchr(start, '\n');
+                /* either an empty file or a very weird file */
+                if(newline_pos == NULL) {
+                        printf("\t\"%s\";"
+                               "\n#endif /* %s */\n", start, header_macro);
+                        return;
+                }
+
                 do {
                         line_len = newline_pos - start + 1;
                         start = newline_pos + 1;
@@ -179,12 +186,10 @@ int main(int argc, char **argv)
         }
 
         file_length = get_file_len(fp);
-        if(file_length == 0) {
-                fprintf(stderr, "error: file is 0 bytes long\n");
-                return EXIT_FAILURE;
-        }
+        if(file_length == 0)
+                fprintf(stderr, "warning: file is 0 bytes long\n");
 
-        contents = malloc(file_length * sizeof(char));
+        contents = malloc(file_length * sizeof(char) + 1);
         for(i = 0; i < file_length; i++)
                 contents[i] = fgetc(fp);
         assert(fgetc(fp) == EOF && i == file_length);
