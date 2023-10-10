@@ -21,18 +21,28 @@ static char *get_header_macro(const char *file_name)
         namelen = strlen(name);
 
         /* convert to uppercase */
-        upper = malloc(namelen * sizeof(char));
-        memset(upper, 0, namelen);
+        /* NOTE: ALWAYS ALLOCATE AN EXTRA BYTE FOR THE NULL BYTE!!1!1 */
+        upper = malloc(namelen * sizeof(char) + 1);
+        memset(upper, 0, namelen + 1);
 
         /* for loop is safer */
         for(i = 0; i < namelen; i++) {
                 c = name[i];
                 if(c >= 'a' && c <= 'z')
                         upper[i] = c - ('a' - 'A');
-                if(c == '.')
-                        upper[i] = '_';
-                if(c == '/')
-                        assert(0 && "This should never happen.");
+                else {
+                        switch (c) {
+                        case '.':
+                                upper[i] = '_';
+                                break;
+                        case '/':
+                                assert(0 && "This should never happen.");
+                                break;
+                        default:
+                                upper[i] = c;
+                                break;
+                        }
+                }
         }
 
         header_name = malloc(BUF_LEN * sizeof(char));
@@ -62,11 +72,10 @@ static void convert_to_header(const char *input, const char *name)
                 base_name = basename((char *)name);
                 namelen = strlen(base_name);
 
-                str_name = malloc(namelen * sizeof(char));
-                strncpy(str_name, base_name, namelen);
+                str_name = malloc(namelen * sizeof(char) + 1);
+                strncpy(str_name, base_name, namelen + 1);
                 period_pos = strchr(str_name, '.');
-                /* for now, let's assume there's only a single period in a path.
-                 */
+                /* for now, let's assume there's only a single period in a path */
                 if (period_pos)
                         *period_pos = '_';
         }
