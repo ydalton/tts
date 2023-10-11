@@ -8,46 +8,61 @@
 #define PROGRAM_NAME "tts"
 #define BUF_LEN 16
 
-/* to convert from say /tmp/foo.txt to FOO_TXT_H_ */
+/* converts a string to uppercase */
+static char *strupper(const char* src)
+{
+        size_t outlen;
+        char *output;
+        size_t i;
+        char c;
+
+        outlen = strlen(src) + 1;
+
+        output = malloc(outlen * sizeof(char));
+        strncpy(output, src, outlen);
+        for(i = 0; i < outlen - 1; i++) {
+                c = output[i];
+                if(c >= 'a' && c <= 'z')
+                        output[i] = c - ('a' - 'A');
+        }
+
+        return output;
+}
+
+/*
+ * convenience function
+ *
+ * NOTE: this function is ridiculously unsafe. do not feed it a statically
+ * declared string, or bad things will happen!
+ */
+static void period_to_underscore(const char *s)
+{
+        char *period_pos;
+
+        period_pos = strchr(s, '.');
+        while(period_pos) {
+                *period_pos = '_';
+                period_pos = strchr(period_pos, '.');
+        }
+}
+
+/* to convert from, say, /tmp/foo.txt to FOO_TXT_H_ */
 static char *get_header_macro(const char *file_name)
 {
-        size_t namelen;
         char *header_name, *name, *upper;
-        char c;
-        size_t i;
 
         name = basename((char *) file_name);
         assert(name != NULL);
-        namelen = strlen(name);
 
         /* convert to uppercase */
         /* NOTE: ALWAYS ALLOCATE AN EXTRA BYTE FOR THE NULL BYTE!!1!1 */
-        upper = malloc(namelen * sizeof(char) + 1);
-        memset(upper, 0, namelen + 1);
+        upper = strupper(name);
 
-        /* for loop is safer */
-        for(i = 0; i < namelen; i++) {
-                c = name[i];
-                if(c >= 'a' && c <= 'z')
-                        upper[i] = c - ('a' - 'A');
-                else {
-                        switch (c) {
-                        case '.':
-                                upper[i] = '_';
-                                break;
-                        case '/':
-                                assert(0 && "This should never happen.");
-                                break;
-                        default:
-                                upper[i] = c;
-                                break;
-                        }
-                }
-        }
+        period_to_underscore(upper);
 
         header_name = malloc(BUF_LEN * sizeof(char));
-        memset(header_name, 0, BUF_LEN);
-        snprintf(header_name, BUF_LEN, "%s_H_", upper);
+        strncpy(header_name, upper, BUF_LEN);
+        strncat(header_name, "_H_", BUF_LEN);
 
         free(upper);
 
@@ -109,34 +124,29 @@ static int print_formatted_file_contents(const char *input,
 /* this whole function is a massive HACK */
 static void convert_to_header(const char *input, const char *name)
 {
-        char *header_macro, *str_name;
+        char *header_macro, *str_name, *base_name;
         char *prototype =
                 "#ifndef %s\n"
                 "#define %s\n"
                 "\n"
                 "const char *%s =\n";
+        size_t namelen;
         int ret;
 
         /* change . to _ in  file name */
-        {
-                char *period_pos, *base_name;
-                size_t namelen;
+        base_name = basename((char *)name);
+        namelen = strlen(base_name);
 
-                base_name = basename((char *)name);
-                namelen = strlen(base_name);
+        str_name = malloc(namelen * sizeof(char) + 1);
+        strncpy(str_name, base_name, namelen + 1);
 
-                str_name = malloc(namelen * sizeof(char) + 1);
-                strncpy(str_name, base_name, namelen + 1);
-                period_pos = strchr(str_name, '.');
-                /* for now, let's assume there's only a single period in a path */
-                if (period_pos)
-                        *period_pos = '_';
-        }
+        period_to_underscore(str_name);
 
         header_macro = get_header_macro(name);
         assert(header_macro != NULL);
 
         printf(prototype, header_macro, header_macro, str_name);
+        free(str_name);
 
         /* returns -1 if there is no newline at all in the file */
         ret = print_formatted_file_contents(input, header_macro);
@@ -146,7 +156,6 @@ static void convert_to_header(const char *input, const char *name)
         printf("\n#endif /* %s */\n", header_macro);
 
 out:
-        free(str_name);
         free(header_macro);
 }
 
