@@ -54,6 +54,61 @@ static char *get_header_macro(const char *file_name)
         return header_name;
 }
 
+static void print_formatted_file_contents(const char *input,
+                                          const char *header_macro)
+{
+        char *line_copy, *newline_pos, *start;
+        size_t line_len, i = 0;
+        size_t num_lines = 0;
+
+        /* some reconnaisance work first */
+        start = (char *)input;
+        newline_pos = strchr(start, '\n');
+        /* either an empty file or a very weird file */
+        if (newline_pos == NULL) {
+                printf("\t\"%s\";"
+                       "\n#endif /* %s */\n",
+                       start, header_macro);
+                return;
+        }
+
+        do {
+                line_len = newline_pos - start + 1;
+                start = newline_pos + 1;
+                newline_pos = strchr(start, '\n');
+                num_lines++;
+        } while (newline_pos);
+
+/* length of the file + two quotes + newline per line + null byte */
+#if 0
+        output_size = strlen(input) + (num_lines * 3) + 1;
+#endif
+
+        /* start all over again */
+        start = (char *)input;
+        newline_pos = strchr(start, '\n');
+        do {
+                /* don't forget the newline! */
+                line_len = newline_pos - start + 1;
+                /* we need to make a copy of the line */
+                line_copy = malloc(line_len);
+                strncpy(line_copy, start, line_len);
+                /* remove the trailing bytes at the end of the line */
+                *(line_copy + line_len - 1) = '\0';
+
+                printf("\t\"%s\\n\"", line_copy);
+                if (i == num_lines - 1)
+                        putchar(';');
+                putchar('\n');
+
+                start = newline_pos + 1;
+                newline_pos = strchr(start, '\n');
+                i++;
+
+                free(line_copy);
+        } while (newline_pos);
+}
+
 /* this whole function is a massive HACK */
 static void convert_to_header(const char *input, const char *name)
 {
@@ -85,57 +140,7 @@ static void convert_to_header(const char *input, const char *name)
 
         printf(prototype, header_macro, header_macro, str_name);
 
-        {
-                char *line_copy, *newline_pos, *start;
-                size_t line_len, i = 0;
-                size_t num_lines = 0;
-
-                /* some reconnaisance work first */
-                start = (char *) input;
-                newline_pos = strchr(start, '\n');
-                /* either an empty file or a very weird file */
-                if(newline_pos == NULL) {
-                        printf("\t\"%s\";"
-                               "\n#endif /* %s */\n", start, header_macro);
-                        return;
-                }
-
-                do {
-                        line_len = newline_pos - start + 1;
-                        start = newline_pos + 1;
-                        newline_pos = strchr(start, '\n');
-                        num_lines++;
-                } while(newline_pos);
-
-                /* length of the file + two quotes + newline per line + null byte */
-                #if 0
-                output_size = strlen(input) + (num_lines * 3) + 1;
-                #endif
-
-                /* start all over again */
-                start = (char *) input;
-                newline_pos = strchr(start, '\n');
-                do{
-                        /* don't forget the newline! */
-                        line_len = newline_pos - start + 1;
-                        /* we need to make a copy of the line */
-                        line_copy = malloc(line_len);
-                        strncpy(line_copy, start, line_len);
-                        /* remove the trailing bytes at the end of the line */
-                        *(line_copy + line_len - 1) = '\0';
-
-                        printf("\t\"%s\\n\"", line_copy);
-                        if(i == num_lines - 1)
-                                putchar(';');
-                        putchar('\n');
-
-                        start = newline_pos + 1;
-                        newline_pos = strchr(start, '\n');
-                        i++;
-
-                        free(line_copy);
-                } while(newline_pos);
-        }
+        print_formatted_file_contents(input, header_macro);
 
         printf("\n#endif /* %s */\n", header_macro);
 
