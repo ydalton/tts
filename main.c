@@ -54,7 +54,7 @@ static char *get_header_macro(const char *file_name)
         return header_name;
 }
 
-static void print_formatted_file_contents(const char *input,
+static int print_formatted_file_contents(const char *input,
                                           const char *header_macro)
 {
         char *line_copy, *newline_pos, *start;
@@ -66,10 +66,10 @@ static void print_formatted_file_contents(const char *input,
         newline_pos = strchr(start, '\n');
         /* either an empty file or a very weird file */
         if (newline_pos == NULL) {
-                printf("\t\"%s\";"
+                printf("\t\"%s\";\n"
                        "\n#endif /* %s */\n",
                        start, header_macro);
-                return;
+                return -1;
         }
 
         do {
@@ -78,11 +78,6 @@ static void print_formatted_file_contents(const char *input,
                 newline_pos = strchr(start, '\n');
                 num_lines++;
         } while (newline_pos);
-
-/* length of the file + two quotes + newline per line + null byte */
-#if 0
-        output_size = strlen(input) + (num_lines * 3) + 1;
-#endif
 
         /* start all over again */
         start = (char *)input;
@@ -107,6 +102,8 @@ static void print_formatted_file_contents(const char *input,
 
                 free(line_copy);
         } while (newline_pos);
+
+        return 0;
 }
 
 /* this whole function is a massive HACK */
@@ -118,6 +115,7 @@ static void convert_to_header(const char *input, const char *name)
                 "#define %s\n"
                 "\n"
                 "const char *%s =\n";
+        int ret;
 
         /* change . to _ in  file name */
         {
@@ -140,11 +138,14 @@ static void convert_to_header(const char *input, const char *name)
 
         printf(prototype, header_macro, header_macro, str_name);
 
-        print_formatted_file_contents(input, header_macro);
+        /* returns -1 if there is no newline at all in the file */
+        ret = print_formatted_file_contents(input, header_macro);
+        if(ret)
+                goto out;
 
         printf("\n#endif /* %s */\n", header_macro);
 
-
+out:
         free(str_name);
         free(header_macro);
 }
