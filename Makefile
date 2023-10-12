@@ -7,3 +7,5 @@ $(BIN): $(OBJ)
 
 clean:
 	rm -f $(BIN) $(OBJ)
+
+.PHONY: $(BIN) clean
