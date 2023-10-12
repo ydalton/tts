@@ -2,13 +2,17 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <errno.h>
 
 #include <libgen.h>
 
-#define PROGRAM_NAME "tts"
 #define BUF_LEN 16
 
+#define FATAL(err) fprintf(stderr, "%s: %s: %s\n", invoked_name, file_name, strerror(err))
+
 int read_binary = 0;
+
+char *invoked_name;
 
 /* converts a string to uppercase */
 static char *strupper(const char* src)
@@ -197,11 +201,10 @@ static size_t get_file_len(FILE *fp)
 
 static void usage(int code)
 {
-        char *program_name = PROGRAM_NAME;
         printf("usage: %s [-b] FILE\n"
                "Converts a plain text file into a C header containing\na string "
                "with the contents of that file. If the -b flag\nis set, read the "
-               "file as a binary file.\n", program_name);
+               "file as a binary file.\n", invoked_name);
         exit(code);
 }
 
@@ -210,6 +213,8 @@ int main(int argc, char **argv)
         FILE *fp;
         char *file_name, *contents;
         size_t i, file_length;
+
+        invoked_name = argv[0];
 
         /* minimal getopt for me */
         switch(argc) {
@@ -232,7 +237,7 @@ int main(int argc, char **argv)
 
         fp = fopen(file_name, "r");
         if(!fp) {
-                perror("Cannot open file");
+                FATAL(errno);
                 return EXIT_FAILURE;
         }
 
