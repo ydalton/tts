@@ -3,6 +3,9 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include <libgen.h>
 
@@ -199,6 +202,13 @@ static size_t get_file_len(FILE *fp)
         return len;
 }
 
+static int path_is_dir(const char *path)
+{
+        struct stat path_stat;
+        stat(path, &path_stat);
+        return S_ISDIR(path_stat.st_mode);
+}
+
 static void usage(int code)
 {
         printf("usage: %s [-b] FILE\n"
@@ -233,6 +243,11 @@ int main(int argc, char **argv)
         default:
                 usage(-1);
                 break;
+        }
+
+        if(path_is_dir(file_name)) {
+                FATAL(EISDIR);
+                return EXIT_FAILURE;
         }
 
         fp = fopen(file_name, "r");
