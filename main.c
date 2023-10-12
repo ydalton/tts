@@ -8,6 +8,8 @@
 #define PROGRAM_NAME "tts"
 #define BUF_LEN 16
 
+int read_binary = 0;
+
 /* converts a string to uppercase */
 static char *strupper(const char* src)
 {
@@ -69,22 +71,23 @@ static char *get_header_macro(const char *file_name)
         return header_name;
 }
 
-static int print_formatted_file_contents(const char *input,
-                                          const char *header_macro)
+static void print_formatted_file_contents(const char *input, size_t len)
 {
         char *line_copy, *newline_pos, *start;
         size_t line_len, i = 0;
         size_t num_lines = 0;
+        /* for the sake of ignoring the compiler warning, i will count the
+         * number of bytes printed, then compare it with the length of the file
+         */
+        size_t bytes_printed = 0;
 
         /* some reconnaisance work first */
         start = (char *)input;
         newline_pos = strchr(start, '\n');
         /* either an empty file or a very weird file */
         if (newline_pos == NULL) {
-                printf("\t\"%s\";\n"
-                       "\n#endif /* %s */\n",
-                       start, header_macro);
-                return -1;
+                bytes_printed += printf("\t\"%s\";\n", start) - 1;
+                return;
         }
 
         do {
@@ -106,7 +109,7 @@ static int print_formatted_file_contents(const char *input,
                 /* remove the trailing bytes at the end of the line */
                 *(line_copy + line_len - 1) = '\0';
 
-                printf("\t\"%s\\n\"", line_copy);
+                bytes_printed += printf("\t\"%s\\n\"", line_copy) - 1;
                 if (i == num_lines - 1)
                         putchar(';');
                 putchar('\n');
@@ -117,21 +120,39 @@ static int print_formatted_file_contents(const char *input,
 
                 free(line_copy);
         } while (newline_pos);
+        assert(bytes_printed > len);
+}
 
-        return 0;
+static void print_binary_file_contents(const char *input, size_t len)
+{
+        size_t i;
+        printf("\t{");
+        for(i = 0; i < len; i++) {
+                if(i % 20 == 0 && i != 0)
+                        printf("\n\t");
+                printf("%u", input[i]);
+                /* because puts adds a newline that you cannot disable */
+                if(i != len - 1)
+                        putchar(',');
+        }
+        puts("};");
 }
 
 /* this whole function is a massive HACK */
-static void convert_to_header(const char *input, const char *name)
+static void convert_to_header(const char *input, const char *name, size_t filelen)
 {
         char *header_macro, *str_name, *base_name;
         char *prototype =
                 "#ifndef %s\n"
                 "#define %s\n"
-                "\n"
-                "const char *%s =\n";
+                "\n";
         size_t namelen;
-        int ret;
+        char *variable_name;
+        /* haha funny pointer trick */
+        void (*print_func)(const char*, size_t);
+
+        variable_name = (read_binary) ? "const char %s[] =\n"
+                : "const char *%s =\n";
 
         /* change . to _ in  file name */
         base_name = basename((char *)name);
@@ -145,17 +166,17 @@ static void convert_to_header(const char *input, const char *name)
         header_macro = get_header_macro(name);
         assert(header_macro != NULL);
 
-        printf(prototype, header_macro, header_macro, str_name);
+        printf(prototype, header_macro, header_macro);
+        printf(variable_name, str_name);
         free(str_name);
 
-        /* returns -1 if there is no newline at all in the file */
-        ret = print_formatted_file_contents(input, header_macro);
-        if(ret)
-                goto out;
+        print_func = (read_binary) ? print_binary_file_contents
+                : print_formatted_file_contents;
+
+        print_func(input, filelen);
 
         printf("\n#endif /* %s */\n", header_macro);
 
-out:
         free(header_macro);
 }
 
@@ -177,9 +198,10 @@ static size_t get_file_len(FILE *fp)
 static void usage(int code)
 {
         char *program_name = PROGRAM_NAME;
-        printf("usage: %s FILE\n"
+        printf("usage: %s [-b] FILE\n"
                "Converts a plain text file into a C header containing\na string "
-               "with the contents of that file.\n", program_name);
+               "with the contents of that file. If the -b flag\nis set, read the "
+               "file as a binary file.\n", program_name);
         exit(code);
 }
 
@@ -189,10 +211,24 @@ int main(int argc, char **argv)
         char *file_name, *contents;
         size_t i, file_length;
 
-        if(argc != 2)
+        /* minimal getopt for me */
+        switch(argc) {
+        case 2:
+                if(!strcmp(argv[1], "-b"))
+                        usage(-1);
+                file_name = argv[1];
+                break;
+        case 3:
+                if(strcmp(argv[1], "-b"))
+                        usage(-1);
+                else
+                        read_binary = 1;
+                file_name = argv[2];
+                break;
+        default:
                 usage(-1);
-
-        file_name = argv[1];
+                break;
+        }
 
         fp = fopen(file_name, "r");
         if(!fp) {
@@ -210,7 +246,7 @@ int main(int argc, char **argv)
         assert(fgetc(fp) == EOF && i == file_length);
         fclose(fp);
 
-        convert_to_header(contents, file_name);
+        convert_to_header(contents, file_name, file_length);
 
         free(contents);
 
