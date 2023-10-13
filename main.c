@@ -270,5 +270,5 @@ int main(int argc, char **argv)
 
         free(contents);
 
-        return EXIT_FAILURE;
+        return EXIT_SUCCESS;
 }
