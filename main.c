@@ -135,9 +135,9 @@ static void print_binary_file_contents(const char *input, size_t len)
         size_t i;
         printf("\t{");
         for(i = 0; i < len; i++) {
-                if(i % 20 == 0 && i != 0)
+                if(i % 10 == 0 && i != 0)
                         printf("\n\t");
-                printf("%u", input[i]);
+                printf("0x%02x", input[i]);
                 /* because puts adds a newline that you cannot disable */
                 if(i != len - 1)
                         putchar(',');
