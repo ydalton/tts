@@ -1,4 +1,4 @@
-CFLAGS=-Wall -Wextra -Wpedantic
+CFLAGS=-Wall -Wextra -Wpedantic -O2
 BIN:=tts
 OBJ:=main.o
 

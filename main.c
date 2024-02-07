@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <unistd.h>
+#include <ctype.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -20,19 +21,15 @@ char *invoked_name;
 /* converts a string to uppercase */
 static char *strupper(const char* src)
 {
-        size_t outlen;
         char *output;
         size_t i;
-        char c;
+        int c;
 
-        outlen = strlen(src) + 1;
-
-        output = malloc(outlen * sizeof(char));
-        strncpy(output, src, outlen);
-        for(i = 0; i < outlen - 1; i++) {
+        output = strdup(src);
+        for(i = 0; i < strlen(src); i++) {
                 c = output[i];
-                if(c >= 'a' && c <= 'z')
-                        output[i] = c - ('a' - 'A');
+                if(islower(c))
+                        output[i] = toupper(c);
         }
 
         return output;
@@ -69,7 +66,7 @@ static char *get_header_macro(const char *file_name)
 
         period_to_underscore(upper);
 
-        header_name = malloc(BUF_LEN * sizeof(char));
+        header_name = malloc(BUF_LEN * sizeof(char) + 1);
         strncpy(header_name, upper, BUF_LEN);
         strncat(header_name, "_H_", BUF_LEN);
 
@@ -148,12 +145,11 @@ static void print_binary_file_contents(const char *input, size_t len)
 /* this whole function is a massive HACK */
 static void convert_to_header(const char *input, const char *name, size_t filelen)
 {
-        char *header_macro, *str_name, *base_name;
+        char *header_macro, *str_name;
         char *prototype =
                 "#ifndef %s\n"
                 "#define %s\n"
                 "\n";
-        size_t namelen;
         char *variable_name;
         /* haha funny pointer trick */
         void (*print_func)(const char*, size_t);
@@ -161,13 +157,9 @@ static void convert_to_header(const char *input, const char *name, size_t filele
         variable_name = (read_binary) ? "const char %s[] =\n"
                 : "const char *%s =\n";
 
+        str_name = strdup(basename((char *)name));
+
         /* change . to _ in  file name */
-        base_name = basename((char *)name);
-        namelen = strlen(base_name);
-
-        str_name = malloc(namelen * sizeof(char) + 1);
-        strncpy(str_name, base_name, namelen + 1);
-
         period_to_underscore(str_name);
 
         header_macro = get_header_macro(name);
