@@ -156,7 +156,7 @@ static void convert_to_header(FILE *out, const char *input, const char *name, si
         /* haha funny pointer trick */
         void (*print_func)(FILE *, const char*, size_t);
 
-        variable_name = (read_binary) ? "const char %s[] =\n"
+        variable_name = (read_binary) ? "const unsigned char %s[] =\n"
                 : "const char *%s =\n";
 
         str_name = strdup(basename((char *)name));
