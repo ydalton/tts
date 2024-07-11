@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <getopt.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -76,7 +77,7 @@ static char *get_header_macro(const char *file_name)
         return header_name;
 }
 
-static void print_formatted_file_contents(const char *input, size_t len)
+static void print_formatted_file_contents(FILE *out, const char *input, size_t len)
 {
         char *line_copy, *newline_pos, *start;
         size_t line_len, i = 0;
@@ -91,7 +92,7 @@ static void print_formatted_file_contents(const char *input, size_t len)
         newline_pos = strchr(start, '\n');
         /* either an empty file or a very weird file */
         if (newline_pos == NULL) {
-                bytes_printed += printf("\t\"%s\";\n", start) - 1;
+                bytes_printed += fprintf(out, "\t\"%s\";\n", start) - 1;
                 return;
         }
 
@@ -114,10 +115,10 @@ static void print_formatted_file_contents(const char *input, size_t len)
                 /* remove the trailing bytes at the end of the line */
                 *(line_copy + line_len - 1) = '\0';
 
-                bytes_printed += printf("\t\"%s\\n\"", line_copy) - 1;
+                bytes_printed += fprintf(out, "\t\"%s\\n\"", line_copy) - 1;
                 if (i == num_lines - 1)
-                        putchar(';');
-                putchar('\n');
+                        fputc(';', out);
+                fputc('\n', out);
 
                 start = newline_pos + 1;
                 newline_pos = strchr(start, '\n');
@@ -128,23 +129,23 @@ static void print_formatted_file_contents(const char *input, size_t len)
         assert(bytes_printed > len);
 }
 
-static void print_binary_file_contents(const char *input, size_t len)
+static void print_binary_file_contents(FILE *out, const char *input, size_t len)
 {
         size_t i;
-        printf("\t{");
+        fprintf(out, "\t{");
         for(i = 0; i < len; i++) {
                 if(i % 10 == 0 && i != 0)
-                        printf("\n\t");
-                printf("0x%02x", input[i]);
+                        fprintf(out, "\n\t");
+                fprintf(out, "0x%02x", input[i]);
                 /* because puts adds a newline that you cannot disable */
                 if(i != len - 1)
-                        putchar(',');
+                        fputc(',', out);
         }
-        puts("};");
+        fputs("};", out);
 }
 
 /* this whole function is a massive HACK */
-static void convert_to_header(const char *input, const char *name, size_t filelen)
+static void convert_to_header(FILE *out, const char *input, const char *name, size_t filelen)
 {
         char *header_macro, *str_name;
         char *prototype =
@@ -153,7 +154,7 @@ static void convert_to_header(const char *input, const char *name, size_t filele
                 "\n";
         char *variable_name;
         /* haha funny pointer trick */
-        void (*print_func)(const char*, size_t);
+        void (*print_func)(FILE *, const char*, size_t);
 
         variable_name = (read_binary) ? "const char %s[] =\n"
                 : "const char *%s =\n";
@@ -166,16 +167,16 @@ static void convert_to_header(const char *input, const char *name, size_t filele
         header_macro = get_header_macro(name);
         assert(header_macro != NULL);
 
-        printf(prototype, header_macro, header_macro);
-        printf(variable_name, str_name);
+        fprintf(out, prototype, header_macro, header_macro);
+        fprintf(out, variable_name, str_name);
         free(str_name);
 
         print_func = (read_binary) ? print_binary_file_contents
                 : print_formatted_file_contents;
 
-        print_func(input, filelen);
+        print_func(out, input, filelen);
 
-        printf("\n#endif /* %s */\n", header_macro);
+        fprintf(out, "\n#endif /* %s */\n", header_macro);
 
         free(header_macro);
 }
@@ -213,30 +214,31 @@ static void usage(int code)
 
 int main(int argc, char **argv)
 {
-        FILE *fp;
-        char *file_name, *contents;
         size_t i, file_length;
+        FILE *fp;
+        FILE *out = stdout;
+        char *file_name, *out_filename = NULL, *contents;
+        int c;
 
         invoked_name = argv[0];
 
-        /* minimal getopt for me */
-        switch(argc) {
-        case 2:
-                if(!strcmp(argv[1], "-b"))
-                        usage(-1);
-                file_name = argv[1];
-                break;
-        case 3:
-                if(strcmp(argv[1], "-b"))
-                        usage(-1);
-                else
+        while((c = getopt(argc, argv, "bo:")) != -1) {
+                switch(c) {
+                case 'b':
                         read_binary = 1;
-                file_name = argv[2];
-                break;
-        default:
-                usage(-1);
-                break;
+                        break;
+                case 'o':
+                        out_filename = strdup(optarg);
+                        break;
+                case '?':
+                default:
+                        usage(-1);
+                }
         }
+
+        file_name = argv[optind];
+        if(!file_name)
+                usage(-1);
 
         if(path_is_dir(file_name)) {
                 FATAL(EISDIR);
@@ -259,7 +261,16 @@ int main(int argc, char **argv)
         assert(fgetc(fp) == EOF && i == file_length);
         fclose(fp);
 
-        convert_to_header(contents, file_name, file_length);
+        if(out_filename) {
+                out = fopen(out_filename, "w");
+                assert(out);
+        }
+        convert_to_header(out, contents, file_name, file_length);
+
+        if(out_filename) {
+                fclose(out);
+                free(out_filename);
+        }
 
         free(contents);
 
