@@ -214,7 +214,7 @@ static void usage(int code)
 
 int main(int argc, char **argv)
 {
-        size_t i, file_length;
+        size_t file_length, bytes_read;
         FILE *fp;
         FILE *out = stdout;
         char *file_name, *out_filename = NULL, *contents;
@@ -255,10 +255,9 @@ int main(int argc, char **argv)
         if(file_length == 0)
                 fprintf(stderr, "warning: file is 0 bytes long\n");
 
-        contents = malloc(file_length * sizeof(char) + 1);
-        for(i = 0; i < file_length; i++)
-                contents[i] = fgetc(fp);
-        assert(fgetc(fp) == EOF && i == file_length);
+        contents = malloc(file_length * sizeof(char));
+        bytes_read = fread(contents, sizeof(char), file_length, fp);
+        assert(file_length == bytes_read);
         fclose(fp);
 
         if(out_filename) {
